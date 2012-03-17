@@ -6,9 +6,21 @@ uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
   Dialogs, IdAntiFreezeBase, IdAntiFreeze, IdBaseComponent, IdComponent,
   IdTCPConnection, IdTCPClient, IdHTTP, StdCtrls, xmldom, XMLIntf,
-  msxmldom, XMLDoc, IniFiles, ComCtrls, ShellAPI;
+  msxmldom, XMLDoc, IniFiles, ComCtrls, ShellAPI, Menus, ExtCtrls;
 
 type
+
+
+  TModInfo = record
+    Name: String[30];
+    Caption: String[30];
+    ModDll: String[30];
+    ModExe: String[30];
+    Version: String[30];
+    Update: Integer;
+    Path: String;
+  end;
+
   TForm1 = class(TForm)
     Memo1: TMemo;
     Button1: TButton;
@@ -16,6 +28,17 @@ type
     IdAntiFreeze1: TIdAntiFreeze;
     XMLDocument1: TXMLDocument;
     ProgressBar1: TProgressBar;
+    MainMenu1: TMainMenu;
+    Mods1: TMenuItem;
+    Launcher1: TMenuItem;
+    Autostart1: TMenuItem;
+    Exit1: TMenuItem;
+    Help1: TMenuItem;
+    About1: TMenuItem;
+    NFK1: TMenuItem;
+    Timer1: TTimer;
+    StartNFK1: TMenuItem;
+    N1: TMenuItem;
     function AddMsg(Msg: string):integer;
     function DownloadFile(RFile,CFile:string; NotMsg:Boolean = False):boolean;
     procedure IdHTTP1Work(Sender: TObject; AWorkMode: TWorkMode;
@@ -27,14 +50,36 @@ type
     procedure LauchUpdate;
     procedure Button1Click(Sender: TObject);
     procedure CheckName;
+    procedure CheckAaa;
     procedure GetXML;
-    procedure DoFileDownload(FName, CurFile, FDir, FUrl:String);
+    procedure DoFileDownload(FName, CFile, FDir, FUrl:String);
     procedure DoFileDelete(FName,FDir:String);
     procedure DoFileRename(FName,FDir,NFName:String);
     procedure DoFolderCreate(FName,FDir:String);
     procedure DoFolderRename(FName,FDir,NFName:String);
     procedure DoFolderDelete(FName,FDir:String);
-    procedure StartUpdate(Node2:IXMLNodeList);
+    procedure StartUpdate(Node2:IXMLNodeList; Dir:ShortString = '');
+    procedure ScanDir(StartDir: string);
+    procedure FindMods;
+    procedure CancelAutoStart;
+    procedure ModClick(Sender: TObject);
+    procedure Memo1Click(Sender: TObject);
+    procedure FormClick(Sender: TObject);
+    procedure Timer1Timer(Sender: TObject);
+    procedure Launcher1Click(Sender: TObject);
+    procedure Mods1Click(Sender: TObject);
+    procedure Help1Click(Sender: TObject);
+    procedure Autostart1Click(Sender: TObject);
+    procedure Exit1Click(Sender: TObject);
+    procedure About1Click(Sender: TObject);
+    procedure FormKeyPress(Sender: TObject; var Key: Char);
+    procedure FormKeyDown(Sender: TObject; var Key: Word;
+      Shift: TShiftState);
+    procedure FormKeyUp(Sender: TObject; var Key: Word;
+      Shift: TShiftState);
+    procedure Memo1KeyDown(Sender: TObject; var Key: Word;
+      Shift: TShiftState);
+    procedure Memo1KeyPress(Sender: TObject; var Key: Char);
 
   private
     { Private declarations }
@@ -42,6 +87,7 @@ type
     { Public declarations }
   end;
 
+function GetFileSize(FileName: String): Integer;
 function CheckConnection(const RemoteHost: string; const RemotePort: integer): boolean;
 function FullRemoveDir(Dir: string; DeleteAllFilesAndFolders,
           StopIfNotAllDeleted, RemoveRoot: boolean): Boolean;
@@ -61,7 +107,12 @@ var
   Host: string;
   URLPath: string;
   ConnTO: Integer = 1500; // time out
-  PQRMod, TRXMod: boolean;
+  PQRMod: boolean;
+  TRXMod: byte = 0;
+  ModList: array of TModInfo;
+  GameMod: TModInfo;
+  ForceMod: boolean;
+  AutoRun: Boolean;
 
 implementation
 
@@ -107,6 +158,11 @@ function TForm1.DownloadFile(RFile,CFile:string; NotMsg:Boolean = False):boolean
 var LoadStream: TMemoryStream;
 begin
   Result:=True;
+  if (RFile = '') or (CFile = '') then begin
+    AddMsg('Error: Empty file name.');
+    Result:=False;
+    Exit;
+  end;
   LoadStream := TMemoryStream.Create;
   if NotMsg then IdHTTP1.Tag:=1 else IdHTTP1.Tag:=0;
   try
@@ -119,7 +175,11 @@ begin
           AddMsg('http://'+Host+URLPath+RFile);
           Button1.Enabled:=True;
         end else AddMsg('Error: '+IntToStr(E.ReplyErrorCode));
+        //AddMsg('Update break.');
         Result:=False;
+        LoadStream.Free;
+        Button1.Enabled:=True;
+        Exit;
       end;
     on E: Exception do
       begin
@@ -130,18 +190,44 @@ begin
         Exit;
       end;
   end;
-  if (CFile = NFKDir+'Launcher.exe') then begin CFile:=CFile+'_'; UpdateSelf:=True; end;
+  if (CFile = NFKDir+'Launcher.exe') then begin CFile:=CFile+'_'; UpdateSelf:=True;  end;
+
+  if LoadStream.Size <= 1 then begin
+    AddMsg('Error: Load stream size error');
+    Result:=False;
+    LoadStream.Free;
+    Button1.Enabled:=True;
+    Exit;
+  end;
   try
     LoadStream.SaveToFile(CFile);
   except
     on E: Exception do
       begin
         AddMsg('Error: Error saving file. ('+E.Message+')');
+        Result:=False;
+        Button1.Enabled:=True;
+        LoadStream.Free;
+        Exit;
       end;
   end;
-  if not FileExists(CFile) then AddMsg('Error '+CFile);
+  if not FileExists(CFile) then begin
+        AddMsg('Error: File not found ('+CFile+')');
+        Result:=False;
+        Button1.Enabled:=True;
+        LoadStream.Free;
+        Exit;
+  end;
+  if LoadStream.Size <> GetFileSize(CFile) then begin
+        AddMsg('Error: File size does not match ('+CFile+')');
+        Result:=False;
+        Button1.Enabled:=True;
+        LoadStream.Free;
+        Exit;
+  end;
   LoadStream.Free;
 end;
+
 
 procedure TForm1.IdHTTP1Work(Sender: TObject; AWorkMode: TWorkMode;
   const AWorkCount: Integer);
@@ -173,26 +259,47 @@ var
     i,k : integer;
     Ini: TIniFile;
     //FName, FDir, FUrl, NFName: String;
-    AutoRun: Boolean;
-    LastVer, LastPQRModVer, LastTRXVer : Integer;
-    SelfUpd: boolean;
+    LastVer{, LastPQRModVer, LastTRXVer} : Integer;
+    SelfUpd, UpdatesFound: boolean;
 begin
   URLPath:='/files/update/';
   NFKDir:=ExtractFilePath(Application.ExeName); // Ex.: C:\NFK\
   SelfUpd:=False;
+  ForceMod:=False;
   // Перехват параметров
   for i:=1 to ParamCount do begin
     if Copy(ParamStr(i),1,6) = 'nfk://' then Continue; // пропускаем лишнее
     if (ParamStr(i) = '+selfupd') then begin SelfUpd:=True; Continue; end;
     if (ParamStr(i) = '+connect') and (Copy(ParamStr(i+1),1,6) = 'nfk://') then begin
-      // свой обработчик для +connect
       Params:=Params+' +connect '+Copy(ParamStr(i+1),7,Length(ParamStr(i+1))-7);
+    end else if ParamStr(i) = '+game' then begin
+      ForceMod:=True;
+      Params:=Params+' '+ParamStr(i);
     end else
       Params:=Params+' '+ParamStr(i);
   end;
+
+  Memo1.Lines.Clear;
+     // Mods
+  // Ищем установленные моды
+
+  FindMods;
+
+  if GameMod.Name = '' then begin
+    NFK1.Checked := True;
+  end else begin
+    Button1.Caption:='Start NFK ('+GameMod.Caption+')';
+  end;
+
   AutoRun:=False;
+
+  Ini:=TIniFile.Create(NFKDir+'basenfk\nfksetup.ini');
+  Autostart1.Checked := Ini.ReadBool('LAUNCHER', 'AutoStart', True);
+  Ini.Free;
+
   Form1.Caption:='NFK Launcher '+Params;
   Form1.Show;
+
   HideCaret(Memo1.Handle);
 
 
@@ -215,24 +322,33 @@ begin
   end;
 
   // Ищем установленные моды
-  if DirectoryExists(NFKDir+'pqrmod') then PQRMod:=True;
-  if DirectoryExists(NFKDir+'BOTS') then TRXMod:=True;
+ // if DirectoryExists(NFKDir+'pqrmod') then PQRMod:=True;
+  //if DirectoryExists(NFKDir+'BOTS') then TRXMod:=True;
+  
+  if Length(ModList) > 0 then
+    for k := Low(ModList) to High(ModList) do
+      if ModList[k].Caption = 'Tribes-X' then begin
+        TRXMod:=k;
+        TRXModVer:=ModList[k].Update;
+        Break;
+      end;
 
   // получаем текущую версию
   Ini:=TIniFile.Create(NFKDir+'basenfk\nfksetup.ini');
-  UpdateVer := Ini.ReadInteger('NFK_VERSION','Update',1);
-  if PQRMod then PQRModVer := Ini.ReadInteger('NFK_VERSION','PQRMod',1);
-  if TRXMod then TRXModVer := Ini.ReadInteger('NFK_VERSION','Tribes-X',1);
+  UpdateVer := Ini.ReadInteger('LAUNCHER','Update',33);
+  //if PQRMod then PQRModVer := Ini.ReadInteger('LAUNCHER','PQRMod',1);
+  //if TRXMod then TRXModVer := Ini.ReadInteger('LAUNCHER','Tribes-X',1);
   Ini.Free;
 
-  Memo1.Lines.Clear;
 
-  AddMsg('Welcome to NFK 0.76.');
+
+  AddMsg('Welcome to NFK 0.77.');
   if SelfUpd then AddMsg('Launcher sucessful updated!');
   AddMsg('Checking for updates...');
 
   // генерируем ник, если это player...
   CheckName;
+  CheckAaa;
 
   // проверка серверов с обновлениями на доступность
   if CheckConnection('nfk.pro2d.ru',80) then
@@ -248,6 +364,8 @@ begin
   // получаем список с обновлениями
   GetXML;
 
+  UpdatesFound:=False;
+  
   // обрабатываем его
   if XMLDocument1.Tag <> 0 then begin
 	  XMLDocument1.Active := true;
@@ -255,8 +373,8 @@ begin
 	  Node:=Root.ChildNodes;
     try
       LastVer:=StrToInt(Node.Nodes['lastver'].Text);
-      if PQRMod then LastPQRModVer:=StrToInt(Node.Nodes['pqrmod_lastver'].Text);
-      if TRXMod then LastPQRModVer:=StrToInt(Node.Nodes['trxmod_lastver'].Text);
+{      if PQRMod then LastPQRModVer:=StrToInt(Node.Nodes['pqrmod_lastver'].Text);
+      if TRXMod then LastPQRModVer:=StrToInt(Node.Nodes['trxmod_lastver'].Text); }
     except
       on E: Exception do
         begin
@@ -269,27 +387,28 @@ begin
 
     // если есть обновления, то загружаем
  	  if UpdateVer < LastVer then begin
+      UpdatesFound:=True;
 		  AddMsg('Updates found! Download...');
 		  for i := 0 to Node.Count-1 do begin
 		    Node2:=Node.Nodes[i].ChildNodes;
+        if Error then Break;
         // работа с файлами
-        if not TRXMod then
 		    if Node.Nodes[i].NodeName = 'files' then begin
 			    if StrToInt(VarToStr(Node.Nodes[i].Attributes['ver'])) > UpdateVer then
-            StartUpdate(Node2);
+            StartUpdate(Node2,NFKDir);
 			      if not Error then begin
               Ini:=TIniFile.Create(NFKDir+'basenfk\nfksetup.ini');
-              Ini.WriteInteger('NFK_VERSION','Update',StrToInt(VarToStr(Node.Nodes[i].Attributes['ver'])));
+              Ini.WriteInteger('LAUNCHER','Update',StrToInt(VarToStr(Node.Nodes[i].Attributes['ver'])));
               Ini.Free;
             end;
         end;
-        if PQRMod then
+       { if PQRMod then
 		    if Node.Nodes[i].NodeName = 'pqrmod' then begin
 			    if StrToInt(VarToStr(Node.Nodes[i].Attributes['ver'])) > PQRModVer then
 			      StartUpdate(Node2);
 			      if not Error then begin
               Ini:=TIniFile.Create(NFKDir+'basenfk\nfksetup.ini');
-              Ini.WriteInteger('NFK_VERSION','PQRMod',StrToInt(VarToStr(Node.Nodes[i].Attributes['ver'])));
+              Ini.WriteInteger('LAUNCHER','PQRMod',StrToInt(VarToStr(Node.Nodes[i].Attributes['ver'])));
               Ini.Free;
             end;
         end;
@@ -299,10 +418,10 @@ begin
 			      StartUpdate(Node2);
 			      if not Error then begin
               Ini:=TIniFile.Create(NFKDir+'basenfk\nfksetup.ini');
-              Ini.WriteInteger('NFK_VERSION','Tribes-X',StrToInt(VarToStr(Node.Nodes[i].Attributes['ver'])));
+              Ini.WriteInteger('LAUNCHER','Tribes-X',StrToInt(VarToStr(Node.Nodes[i].Attributes['ver'])));
               Ini.Free;
             end;
-        end;
+        end;   }
           // обновление завершено
 
           if UpdateSelf then begin
@@ -311,14 +430,39 @@ begin
             Exit;
           end;
 		  end;
-		  AddMsg('NFK sucessful updated!');
-	  end else begin AddMsg('Updates not found.'); AutoRun:=True; end;
+		  if not Error then AddMsg('NFK sucessful updated!');
+	  end;
+
+    if TRXMod <> 0 then
+    for i := 0 to Node.Count-1 do begin
+      Node2:=Node.Nodes[i].ChildNodes;
+      if Node.Nodes[i].NodeName = 'trxmod' then begin
+			  if StrToInt(VarToStr(Node.Nodes[i].Attributes['ver'])) > TRXModVer then begin
+          UpdatesFound:=True;
+			    StartUpdate(Node2,ModList[TRXMod].Path);
+          if not Error then begin
+            Ini:=TIniFile.Create(ModList[TRXMod].Path+'\'+'Mod.nfo');
+            Ini.WriteInteger('MOD_INFO','update',StrToInt(VarToStr(Node.Nodes[i].Attributes['ver'])));
+            Ini.Free;
+            AddMsg('Tribes-X mod sucessful updated!');
+          end;
+        end;
+      end;
+    end;
+
+
+
+    if not UpdatesFound then begin
+      AddMsg('Updates not found.');
+      if Autostart1.Checked then AutoRun:=True;
+    end;
+
 	  XMLDocument1.Active := False;
 	  if FileExists(NFKDir+xml) then DeleteFile(NFKDir+xml);
     if SelfUpd then AutoRun:=False;
-	  if AutoRun then Button1Click(Self);
   end else AddMsg('Error: Update failed!');
   Button1.Enabled:=True;
+  Timer1.Enabled := True;
 end;
 
 procedure TForm1.LauchUpdate;
@@ -338,9 +482,27 @@ begin
 end;
 
 procedure TForm1.Button1Click(Sender: TObject);
+{var
+  StartUpInfo: TSTARTUPINFO;
+  ProcessInfo: TPROCESSINFORMATION;   }
 begin
-  if TRXMod then Params:=Params+' +game BOTS';
+  //if TRXMod then Params:=Params+' +game BOTS';
+  if not ForceMod and (GameMod.Name <> '') and (GameMod.Name <> 'NFK') then begin
+    Params:=Params+' +game Mods\'+GameMod.Name;
+    if GameMod.ModExe <> '' then GameExe:=GameMod.ModExe;
+    //if GameMod.ModDll <> '' then Params:=Params+' +dll '+GameMod.ModDll;
+  end;
   WinExec(PChar(NFKDir+GameExe+' '+Params),SW_HIDE);
+{  CreateProcess(PAnsiChar(GameMod.Path+'\'+GameExe),
+                PAnsiChar(Params),
+                nil,
+                nil,
+                False,
+                NORMAL_PRIORITY_CLASS,
+                nil,
+                PAnsiChar(NFKDir),
+                StartUpInfo,
+                ProcessInfo);  }
   Application.Terminate;
 end;
 
@@ -365,6 +527,31 @@ begin
       Changed:=True;
     end;
   if Changed then ts.SaveToFile(ROOTDIR+'nfkconfig.cfg');
+  ts.Free;
+end;
+
+procedure TForm1.CheckAaa;
+var ts: TStringList;
+    i: integer;
+    ROOTDIR: String;
+    Found: boolean;
+begin
+  Found:=False;
+  ROOTDIR:=NFKDir+'basenfk\';
+  if not FileExists(ROOTDIR+'autoexec.cfg') then begin
+    ShowMessage('Error: autoexec.cfg not found!');
+    exit;
+  end;
+  ts := TStringList.Create;
+  ts.LoadFromFile(ROOTDIR+'autoexec.cfg');
+  for i := 0 to ts.Count - 1 do
+    if LowerCase(ts[i]) = 'aaa' then begin
+      Found:=True;
+    end;
+  if not Found then begin
+    ts.Add('aaa');
+    ts.SaveToFile(ROOTDIR+'autoexec.cfg');
+  end;
   ts.Free;
 end;
 
@@ -438,87 +625,280 @@ begin
 end;
 
 
-procedure TForm1.DoFileDownload(FName, CurFile, FDir, FUrl: String);
+procedure TForm1.DoFileDownload(FName, CFile, FDir, FUrl: String);
 begin
-                if not DirectoryExists(NFKDir+FDir) then if CreateDir(NFKDir+FDir) then begin
+  CurFile:=CFile;
+                if not DirectoryExists(FDir) then if CreateDir(FDir) then begin
                   AddMsg(FDir+' folder created.');
                 end else AddMsg(FDir+' folder create error '+IntToStr(GetLastError));
-				        if not DownloadFile(FUrl+FName,NFKDir+FDir+FName) then begin
+				        if not DownloadFile(FUrl+FName,FDir+FName) then begin
                   AddMsg('Update failed.');
                   XMLDocument1.Active := False;
                   Button1.Enabled:=True;
+                  Error:=True;
                   Exit;
                 end;
 end;
 
 procedure TForm1.DoFileDelete(FName, FDir: String);
 begin
-                if FileExists(NFKDir+FDir+FName) then if DeleteFile(NFKDir+FDir+FName) then
+                if FileExists(FDir+FName) then if DeleteFile(FDir+FName) then
                   AddMsg(FName+' deleted.');
 end;
 
 procedure TForm1.DoFileRename(FName, FDir, NFName: String);
 begin
 
-                if FileExists(NFKDir+FDir+FName) then if RenameFile(NFKDir+FDir+FName,NFKDir+FDir+NFName) then begin
+                if FileExists(FDir+FName) then if RenameFile(FDir+FName,FDir+NFName) then begin
                   AddMsg(FName+' renamed to '+NFName);
                 end else AddMsg(FName+' renaming error '+IntToStr(GetLastError));
 end;
 
 procedure TForm1.DoFolderCreate(FName, FDir: String);
 begin
-                if not DirectoryExists(NFKDir+FDir+FName) then if CreateDir(NFKDir+FDir+FName) then begin
+                if not DirectoryExists(FDir+FName) then if CreateDir(FDir+FName) then begin
                   AddMsg(FName+' folder created.');
                 end else AddMsg(FName+' folder create error '+IntToStr(GetLastError));
 end;
 
 procedure TForm1.DoFolderRename(FName, FDir, NFName: String);
 begin
-                if RenameFile(NFKDir+FDir+FName,NFKDir+FDir+NFName) then begin
+                if RenameFile(FDir+FName,FDir+NFName) then begin
                   AddMsg(FName+' renamed to '+NFName);
                 end else AddMsg(FName+' renaming error '+IntToStr(GetLastError));
 end;
 
 procedure TForm1.DoFolderDelete(FName, FDir: String);
 begin
-                if DirectoryExists(NFKDir+FDir+FName) then if FullRemoveDir(NFKDir+FDir+FName+'\', True, True, True) then begin
+                if DirectoryExists(FDir+FName) then if FullRemoveDir(FDir+FName+'\', True, True, True) then begin
                   AddMsg(FName+' folder deleted.');
                 end else AddMsg(FName+' folder delete error '+NFKDir+FDir+FName+' - '+IntToStr(GetLastError));
 end;
 
-procedure TForm1.StartUpdate(Node2: IXMLNodeList);
+procedure TForm1.StartUpdate(Node2: IXMLNodeList; Dir: ShortString = '');
 var k:byte;
 begin
+  if Dir[Length(Dir)] <> '\' then
+    Dir := Dir + '\';
 			      for k := 0 to Node2.Count-1 do begin
               // скачать файл
 				      if Node2.Nodes[k].NodeName = 'file' then begin
                 DoFileDownload(Node2.Nodes[k].Text,Node2.Nodes[k].Text,
-                    VarToStr(Node2.Nodes[k].Attributes['dir']),
+                    Dir+VarToStr(Node2.Nodes[k].Attributes['dir']),
                     VarToStr(Node2.Nodes[k].Attributes['url']));
 				      end;
               // удалить файл
               if Node2.Nodes[k].NodeName = 'delete' then begin
-                DoFileDelete(Node2.Nodes[k].Text,VarToStr(Node2.Nodes[k].Attributes['dir']));
+                DoFileDelete(Node2.Nodes[k].Text,Dir+VarToStr(Node2.Nodes[k].Attributes['dir']));
               end;
               // переименовать файл
               if Node2.Nodes[k].NodeName = 'rename' then begin
-                DoFileRename(Node2.Nodes[k].Text,VarToStr(Node2.Nodes[k].Attributes['dir']),
+                DoFileRename(Node2.Nodes[k].Text,Dir+VarToStr(Node2.Nodes[k].Attributes['dir']),
                     VarToStr(Node2.Nodes[k].Attributes['newname']));
               end;
               // создать папку
               if Node2.Nodes[k].NodeName = 'crdir' then begin
-                DoFolderCreate(Node2.Nodes[k].Text,VarToStr(Node2.Nodes[k].Attributes['dir']));
+                DoFolderCreate(Node2.Nodes[k].Text,Dir+VarToStr(Node2.Nodes[k].Attributes['dir']));
               end;
               // переименовать папку
               if Node2.Nodes[k].NodeName = 'rendir' then begin
-                DoFolderRename(Node2.Nodes[k].Text,VarToStr(Node2.Nodes[k].Attributes['dir']),
+                DoFolderRename(Node2.Nodes[k].Text,Dir+VarToStr(Node2.Nodes[k].Attributes['dir']),
                     VarToStr(Node2.Nodes[k].Attributes['newname']));
               end;
               // удалить папку
               if Node2.Nodes[k].NodeName = 'remdir' then begin
-                DoFolderDelete(Node2.Nodes[k].Text,VarToStr(Node2.Nodes[k].Attributes['dir']));
+                DoFolderDelete(Node2.Nodes[k].Text,Dir+VarToStr(Node2.Nodes[k].Attributes['dir']));
               end;
             end;
+end;
+
+
+procedure TForm1.ScanDir(StartDir: string);
+var
+  SearchRec: TSearchRec;
+    ini: TIniFile;
+    Item: TMenuItem;
+    n: Byte;
+    Mask: string;
+    ModFound: boolean;
+begin
+
+  Mask := '*.*';
+  if StartDir[Length(StartDir)] <> '\' then
+    StartDir := StartDir + '\';
+
+  Ini:=TIniFile.Create(NFKDir+'basenfk\nfksetup.ini');
+  GameMod.Name := Ini.ReadString('LAUNCHER','Mod','');;
+  Ini.Free;
+  ModFound:=False;
+  SetLength(ModList, 1);
+  ModList[0].Name := 'NFK';
+  ModList[0].Caption := 'NFK';
+ if DirectoryExists(NFKDir+'Mods') then begin
+  if FindFirst(StartDir + Mask, faDirectory, SearchRec) = 0 then begin
+    repeat Application.ProcessMessages;
+      if (SearchRec.Name <> '..') and (SearchRec.Name <> '.')then
+      if FileExists(StartDir + SearchRec.Name + '\' + 'Mod.nfo') then  begin
+        Ini:=TIniFile.Create(StartDir + SearchRec.Name + '\' + 'Mod.nfo');
+        if Ini.ReadString('MOD_INFO','name','') = '' then continue;
+        SetLength(ModList, Length(ModList)+1);
+        n:=High(ModList);
+        ModList[n].Name := SearchRec.Name;
+        ModList[n].Path := StartDir + SearchRec.Name + '\';
+        ModList[n].Caption := Ini.ReadString('MOD_INFO','name','');
+        ModList[n].ModDll := 'Mods\' + SearchRec.Name + '\' + Ini.ReadString('MOD_INFO','moddll','');
+        ModList[n].ModExe := Ini.ReadString('MOD_INFO','modexe','');
+        ModList[n].Version := Ini.ReadString('MOD_INFO','version','');
+        ModList[n].Update := Ini.ReadInteger('MOD_INFO','update',1);
+        Ini.Free;
+        Item := TMenuItem.Create(self);
+        Item.OnClick := ModClick;
+        Item.Caption := ModList[n].Caption;
+        Item.AutoCheck := True;
+        Item.GroupIndex := 1;
+        Item.RadioItem := True;
+        if GameMod.Name = ModList[n].Name then begin
+          Item.Checked := True;
+          ModFound:=True;
+          GameMod:=ModList[n];
+        end;
+        Mods1.Add(Item);
+      end;
+    until FindNext(SearchRec) <> 0;
+    FindClose(SearchRec);
+  end;
+ end;
+  if not ModFound then GameMod.Name := '';
+end;
+
+procedure TForm1.FindMods;
+{var
+    i:byte;
+    Item: TMenuItem;
+    List: TModInfo;  }
+begin
+    ScanDir(NFKDir+'Mods');
+end;
+
+procedure TForm1.ModClick(Sender: TObject);
+var i : byte;
+    ini : TIniFile;
+begin
+  (Sender as TMenuItem).Checked := True;
+  i := Mods1.IndexOf(Sender as TMenuItem);
+  if GameMod.Name <> ModList[i].Name then begin
+    GameMod:=ModList[i];
+    Ini:=TIniFile.Create(NFKDir+'basenfk\nfksetup.ini');
+    Ini.WriteString('LAUNCHER','Mod',GameMod.Name);
+    Ini.Free;
+    AddMsg('Game Mod changed to ' + ModList[i].Caption);
+    Button1.Caption:='Start NFK ('+ModList[i].Caption+')';
+  end;
+end;
+
+procedure TForm1.Memo1Click(Sender: TObject);
+begin
+  CancelAutoStart;
+end;
+
+procedure TForm1.FormClick(Sender: TObject);
+begin
+  CancelAutoStart;
+end;
+
+procedure TForm1.Timer1Timer(Sender: TObject);
+begin
+  if AutoRun then
+    if AutoStart1.Checked then Button1Click(Self);
+  Timer1.Enabled := False;
+end;
+
+procedure TForm1.Launcher1Click(Sender: TObject);
+begin
+  CancelAutoStart;
+end;
+
+procedure TForm1.Mods1Click(Sender: TObject);
+begin
+  CancelAutoStart;
+end;
+
+procedure TForm1.Help1Click(Sender: TObject);
+begin
+  CancelAutoStart;
+end;
+
+procedure TForm1.Autostart1Click(Sender: TObject);
+var
+  ini : TIniFile;
+begin
+  Ini:=TIniFile.Create(NFKDir+'basenfk\nfksetup.ini');
+  Ini.WriteBool('LAUNCHER', 'AutoStart', Autostart1.Checked);
+  Ini.Free;
+  if Autostart1.Checked then AddMsg('Autostart Enabled.') else AddMsg('Autostart Disabled.');
+end;
+
+procedure TForm1.Exit1Click(Sender: TObject);
+begin
+  Close;
+end;
+
+procedure TForm1.About1Click(Sender: TObject);
+begin
+ShowMessage('On any questions please contact pff-clan@mail.ru,'+#10#13+'or IRC channel irc.wenet.ru #nfk'+#10#13+
+            #10#13+
+            'Author: coolant'+#10#13+
+            'Version: 1.2.5');
+end;
+
+procedure TForm1.FormKeyPress(Sender: TObject; var Key: Char);
+begin
+  CancelAutoStart;
+end;
+
+procedure TForm1.FormKeyDown(Sender: TObject; var Key: Word;
+  Shift: TShiftState);
+begin
+  CancelAutoStart;
+end;
+
+procedure TForm1.FormKeyUp(Sender: TObject; var Key: Word;
+  Shift: TShiftState);
+begin
+  CancelAutoStart;
+end;
+
+procedure TForm1.Memo1KeyDown(Sender: TObject; var Key: Word;
+  Shift: TShiftState);
+begin
+  CancelAutoStart;
+end;
+
+procedure TForm1.CancelAutoStart;
+begin
+  if AutoRun then begin
+    AutoRun:=False;
+    AddMsg('Autostart canceled');
+  end;
+end;
+
+procedure TForm1.Memo1KeyPress(Sender: TObject; var Key: Char);
+begin
+  CancelAutoStart;
+end;
+
+function GetFileSize(FileName: String): Integer;
+var
+  FS: TFileStream;
+begin
+  try
+    FS := TFileStream.Create(Filename, fmOpenRead);
+  except
+    Result := -1;
+    Exit;
+  end;
+  Result := FS.Size;
+  FS.Free;
 end;
 
 end.

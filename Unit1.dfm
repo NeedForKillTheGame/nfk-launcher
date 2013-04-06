@@ -136,9 +136,43 @@ object Form1: TForm1
         OnClick = ModClick
       end
     end
+    object Community1: TMenuItem
+      Caption = 'Community'
+      object NFKSite1: TMenuItem
+        Caption = 'NFK Site'
+        OnClick = NFKSite1Click
+      end
+      object NFKStatistics1: TMenuItem
+        Caption = 'NFK Ladder'
+        OnClick = NFKStatistics1Click
+      end
+      object NFKChat1: TMenuItem
+        Caption = 'Chat'
+        OnClick = NFKChat1Click
+      end
+    end
+    object ools1: TMenuItem
+      Caption = 'Tools'
+      object Setup1: TMenuItem
+        Caption = 'Setup'
+        OnClick = Setup1Click
+      end
+      object PlanetScanner1: TMenuItem
+        Caption = 'Planet Scanner'
+        OnClick = PlanetScanner1Click
+      end
+      object Editor1: TMenuItem
+        Caption = 'Editor'
+        OnClick = Editor1Click
+      end
+    end
     object Help1: TMenuItem
       Caption = 'Help'
       OnClick = Help1Click
+      object Readme1: TMenuItem
+        Caption = 'NFK Help'
+        OnClick = Readme1Click
+      end
       object About1: TMenuItem
         Caption = 'About...'
         OnClick = About1Click

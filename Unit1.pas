@@ -39,6 +39,15 @@ type
     Timer1: TTimer;
     StartNFK1: TMenuItem;
     N1: TMenuItem;
+    Community1: TMenuItem;
+    ools1: TMenuItem;
+    NFKSite1: TMenuItem;
+    NFKStatistics1: TMenuItem;
+    NFKChat1: TMenuItem;
+    Setup1: TMenuItem;
+    PlanetScanner1: TMenuItem;
+    Editor1: TMenuItem;
+    Readme1: TMenuItem;
     function AddMsg(Msg: string):integer;
     function DownloadFile(RFile,CFile:string; NotMsg:Boolean = False):boolean;
     procedure IdHTTP1Work(Sender: TObject; AWorkMode: TWorkMode;
@@ -80,6 +89,13 @@ type
     procedure Memo1KeyDown(Sender: TObject; var Key: Word;
       Shift: TShiftState);
     procedure Memo1KeyPress(Sender: TObject; var Key: Char);
+    procedure NFKSite1Click(Sender: TObject);
+    procedure NFKStatistics1Click(Sender: TObject);
+    procedure NFKChat1Click(Sender: TObject);
+    procedure Setup1Click(Sender: TObject);
+    procedure PlanetScanner1Click(Sender: TObject);
+    procedure Editor1Click(Sender: TObject);
+    procedure Readme1Click(Sender: TObject);
 
   private
     { Private declarations }
@@ -848,7 +864,7 @@ begin
 ShowMessage('On any questions please contact pff-clan@mail.ru,'+#10#13+'or IRC channel irc.wenet.ru #nfk'+#10#13+
             #10#13+
             'Author: coolant'+#10#13+
-            'Version: 1.2.5');
+            'Version: 1.2.6');
 end;
 
 procedure TForm1.FormKeyPress(Sender: TObject; var Key: Char);
@@ -899,6 +915,41 @@ begin
   end;
   Result := FS.Size;
   FS.Free;
+end;
+
+procedure TForm1.NFKSite1Click(Sender: TObject);
+begin
+  ShellExecute(0, 'open', 'http://needforkill.ru', nil, nil, SW_SHOW);
+end;
+
+procedure TForm1.NFKStatistics1Click(Sender: TObject);
+begin
+  ShellExecute(0, 'open', 'http://nfk.pro2d.ru', nil, nil, SW_SHOW);
+end;
+
+procedure TForm1.NFKChat1Click(Sender: TObject);
+begin
+  ShellExecute(0, nil, PChar('nfkchat.exe'), nil, nil, SW_SHOW);
+end;
+
+procedure TForm1.Setup1Click(Sender: TObject);
+begin
+  ShellExecute(0, nil, PChar('Setup.exe'), nil, nil, SW_SHOW);
+end;
+
+procedure TForm1.PlanetScanner1Click(Sender: TObject);
+begin
+  ShellExecute(0, nil, PChar('PlanetScanner.exe'), nil, nil, SW_SHOW);
+end;
+
+procedure TForm1.Editor1Click(Sender: TObject);
+begin
+  ShellExecute(0, nil, PChar('Editor\Editor.exe'), nil, nil, SW_SHOW);
+end;
+
+procedure TForm1.Readme1Click(Sender: TObject);
+begin
+  ShellExecute(0, 'open', 'HELP\nfk_help070.htm', nil, nil, SW_SHOW);
 end;
 
 end.

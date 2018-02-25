@@ -367,8 +367,8 @@ begin
   CheckAaa;
 
   // проверка серверов с обновлениями на доступность
-  if CheckConnection('nfk.pro2d.ru',80) then
-    Host:='nfk.pro2d.ru'
+  if CheckConnection('stats.needforkill.ru',80) then
+    Host:='stats.needforkill.ru'
   else if CheckConnection('nfk.nx0.ru',80) then
     Host:='nfk.nx0.ru'
   else begin
@@ -924,7 +924,7 @@ end;
 
 procedure TForm1.NFKStatistics1Click(Sender: TObject);
 begin
-  ShellExecute(0, 'open', 'http://nfk.pro2d.ru', nil, nil, SW_SHOW);
+  ShellExecute(0, 'open', 'http://stats.needforkill.ru', nil, nil, SW_SHOW);
 end;
 
 procedure TForm1.NFKChat1Click(Sender: TObject);

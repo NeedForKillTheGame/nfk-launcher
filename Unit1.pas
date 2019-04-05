@@ -367,8 +367,8 @@ begin
   CheckAaa;
 
   // проверка серверов с обновлениями на доступность
-  if CheckConnection('stats.needforkill.ru',80) then
-    Host:='stats.needforkill.ru'
+  if CheckConnection('nfk.harpywar.com',80) then
+    Host:='nfk.harpywar.com'
   else if CheckConnection('nfk.nx0.ru',80) then
     Host:='nfk.nx0.ru'
   else begin
@@ -864,7 +864,7 @@ begin
 ShowMessage('On any questions please contact pff-clan@mail.ru,'+#10#13+'or IRC channel irc.wenet.ru #nfk'+#10#13+
             #10#13+
             'Author: coolant'+#10#13+
-            'Version: 1.2.6');
+            'Version: 1.2.7');
 end;
 
 procedure TForm1.FormKeyPress(Sender: TObject; var Key: Char);
@@ -929,7 +929,7 @@ end;
 
 procedure TForm1.NFKChat1Click(Sender: TObject);
 begin
-  ShellExecute(0, nil, PChar('nfkchat.exe'), nil, nil, SW_SHOW);
+  ShellExecute(0, 'open', 'https://discord.gg/FepMjSc', nil, nil, SW_SHOW);
 end;
 
 procedure TForm1.Setup1Click(Sender: TObject);
@@ -939,7 +939,7 @@ end;
 
 procedure TForm1.PlanetScanner1Click(Sender: TObject);
 begin
-  ShellExecute(0, nil, PChar('PlanetScanner.exe'), nil, nil, SW_SHOW);
+  ShellExecute(0, 'open', 'http://stats.needforkill.ru', nil, nil, SW_SHOW);
 end;
 
 procedure TForm1.Editor1Click(Sender: TObject);

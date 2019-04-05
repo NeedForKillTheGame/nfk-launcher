@@ -4,13 +4,13 @@ object Form1: TForm1
   BorderIcons = [biSystemMenu]
   BorderStyle = bsSingle
   Caption = 'NFK Launcher'
-  ClientHeight = 247
-  ClientWidth = 353
+  ClientHeight = 304
+  ClientWidth = 434
   Color = clBtnFace
   DefaultMonitor = dmDesktop
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
-  Font.Height = -11
+  Font.Height = -14
   Font.Name = 'MS Sans Serif'
   Font.Style = []
   Menu = MainMenu1
@@ -21,13 +21,13 @@ object Form1: TForm1
   OnKeyDown = FormKeyDown
   OnKeyPress = FormKeyPress
   OnKeyUp = FormKeyUp
-  PixelsPerInch = 96
-  TextHeight = 13
+  PixelsPerInch = 120
+  TextHeight = 16
   object Memo1: TMemo
     Left = 0
     Top = 0
-    Width = 353
-    Height = 185
+    Width = 434
+    Height = 228
     Align = alTop
     BevelEdges = []
     BevelInner = bvNone
@@ -36,7 +36,7 @@ object Form1: TForm1
     Ctl3D = False
     Font.Charset = RUSSIAN_CHARSET
     Font.Color = clYellow
-    Font.Height = -11
+    Font.Height = -15
     Font.Name = 'Courier New'
     Font.Style = []
     Lines.Strings = (
@@ -50,10 +50,10 @@ object Form1: TForm1
     OnKeyPress = Memo1KeyPress
   end
   object Button1: TButton
-    Left = 8
-    Top = 208
-    Width = 337
-    Height = 33
+    Left = 10
+    Top = 256
+    Width = 415
+    Height = 41
     Caption = 'Start NFK'
     Enabled = False
     TabOrder = 1
@@ -61,9 +61,9 @@ object Form1: TForm1
   end
   object ProgressBar1: TProgressBar
     Left = 0
-    Top = 185
-    Width = 353
-    Height = 17
+    Top = 228
+    Width = 434
+    Height = 21
     Align = alTop
     TabOrder = 2
   end
@@ -147,7 +147,7 @@ object Form1: TForm1
         OnClick = NFKStatistics1Click
       end
       object NFKChat1: TMenuItem
-        Caption = 'Chat'
+        Caption = 'Discord'
         OnClick = NFKChat1Click
       end
     end
